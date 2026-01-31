@@ -402,3 +402,37 @@ else place
     GROUP BY 1
     ORDER BY 2 desc
     ;
+
+    --
+
+  SELECT place
+,extract('days' from '2020-12-31 23:59:59' - latest) 
+ as days_since_latest
+,count(*) as earthquakes
+,extract('days' from avg(gap)) as avg_gap
+,extract('days' from max(gap)) as max_gap
+FROM
+(
+        SELECT place
+        ,time
+        ,lead(time) over (partition by place order by time) as next_time
+        ,lead(time) over (partition by place order by time) - time as gap
+        ,max(time) over (partition by place) as latest
+        FROM
+        (
+                SELECT 
+                replace(
+                  initcap(
+                  case when place ~ ', [A-Z]' then split_part(place,', ',2)
+                       when place like '% of %' then split_part(place,' of ',2)
+                       else place end
+                )
+                ,'Region','')
+                as place
+                ,time
+                FROM earthquakes
+                WHERE mag > 5
+        ) a
+) a         
+GROUP BY 1,2        
+;
