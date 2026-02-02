@@ -436,3 +436,69 @@ FROM
 ) a         
 GROUP BY 1,2        
 ;
+--
+SELECT time, mag, type
+FROM earthquakes
+WHERE mag not in (-9,-9.99)
+limit 100
+;
+
+--
+SELECT
+  avg(mag) AS avg_mag,
+  avg(case when mag > -9 then mag end) AS avg_mag_adjusted
+FROM earthquakes;
+--
+
+SELECT avg(mag) as avg_mag
+,avg(case when mag > -9 then mag end) as avg_mag_adjusted
+FROM earthquakes
+WHERE place = 'Yellowstone National Park, Wyoming'
+;
+
+--
+SELECT 
+  CASE
+    WHEN type = 'earthquake' THEN type
+    ELSE 'Other'
+  END AS event_type,
+  count(*)
+FROM earthquakes
+GROUP BY 1;
+
+
+--
+SELECT a.time, a.place, a.mag
+,case when a.mag > b.percentile_95 then b.percentile_95
+      when a.mag < b.percentile_05 then b.percentile_05
+      else a.mag
+      end as mag_winsorized
+FROM earthquakes a
+JOIN
+(
+SELECT percentile_cont(0.95) within group (order by mag) 
+ as percentile_95
+,percentile_cont(0.05) within group (order by mag) 
+ as percentile_05
+FROM earthquakes
+) b on 1 = 1 
+--WHERE mag IS NOT NULL AND mag NOT IN (-9, -9.99)
+;
+
+--
+SELECT percentile_cont(0.95) within group (order by mag)
+as percentile_95
+,percentile_cont(0.05) within group (order by mag)
+as percentile_05
+FROM earthquakes
+;
+
+
+-- Rescaling
+SELECT round(depth,1) as depth
+,log(round(depth,1)) as log_depth
+,count(*) as earthquakes
+FROM earthquakes
+WHERE depth >= 0.05
+GROUP BY 1,2
+;
