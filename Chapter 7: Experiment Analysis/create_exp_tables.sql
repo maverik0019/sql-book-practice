@@ -73,7 +73,4 @@ DELIMITER ',' CSV HEADER;
     GROUP BY 1
     ;
 
-git add create_exp_tables.sql
-git commit -m "Update create_exp_tables.sql"
-git push
 
