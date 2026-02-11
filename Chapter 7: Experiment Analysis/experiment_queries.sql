@@ -120,6 +120,7 @@ GROUP BY 1
 ;
 
 -- Natural experiment analysis
+
 SELECT a.country
 ,count(distinct a.user_id) as total_cohorted
 ,count(distinct b.user_id) as purchasers
