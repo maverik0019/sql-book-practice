@@ -93,3 +93,140 @@ LEFT JOIN (
 ON a.user_id = u.user_id
 GROUP BY 1
 ORDER BY 1;
+
+
+--Ejercicio/Pregunta 3 Baseline vs Follow-up
+--Para cada usuario:
+--fecha de registro
+--fecha de primera acción
+--días entre ambas
+
+
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'game_actions';
+
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'game_users';
+
+
+SELECT u.user_id, 
+        u.created,
+        f.first_action_date,
+        f.first_action_date - u.created as days_to_first_action
+FROM game_users u
+LEFT JOIN
+(
+SELECT user_id, MIN(action_date) AS first_action_date
+FROM game_actions
+GROUP BY user_id
+) f
+ON u.user_id = f.user_id;
+
+-- ¿Cuál es el tiempo promedio al primer evento?
+WITH tabla_tiempo AS (
+SELECT u.user_id, 
+        u.created,
+        f.first_action_date,
+        f.first_action_date - u.created as days_to_first_action
+FROM game_users u
+LEFT JOIN
+(
+SELECT user_id, MIN(action_date) AS first_action_date
+FROM game_actions
+GROUP BY user_id
+) f
+ON u.user_id = f.user_id)
+SELECT AVG(days_to_first_action)::int AS avg_days_to_first_action
+FROM tabla_tiempo
+WHERE first_action_date IS NOT NULL;
+
+--Tiempo promedio al primer evento (overall)-cohorte mensual
+
+
+WITH tabla_tiempo AS (
+SELECT u.user_id, 
+        u.created,
+        f.first_action_date,
+        f.first_action_date - u.created as days_to_first_action
+FROM game_users u
+LEFT JOIN
+(
+SELECT user_id, MIN(action_date) AS first_action_date
+FROM game_actions
+GROUP BY user_id
+) f
+ON u.user_id = f.user_id)
+
+SELECT 
+    date_trunc('month', created)::date AS cohort_month, 
+    AVG(days_to_first_action)
+FROM tabla_tiempo
+WHERE first_action_date IS NOT NULL
+GROUP BY 1
+Order By 1;
+
+----Los usuarios hicieron su primera 
+--acción el 
+--mismo día que se registraron
+--Activación inmediata, No hay delay en el primer evento
+--proceso altamente eficiente, dato generado el mismo día
+
+
+
+--Time-to-event analysis
+
+WITH tabla_tiempo AS (
+SELECT u.user_id, 
+        u.created,
+        f.first_action_date,
+        f.first_action_date - u.created as days_to_first_action
+FROM game_users u
+LEFT JOIN
+(
+SELECT user_id, MIN(action_date) AS first_action_date
+FROM game_actions
+GROUP BY user_id
+) f
+ON u.user_id = f.user_id)
+
+SELECT
+PERCENTILE_CONT(0.5)
+WITHIN GROUP (ORDER BY days_to_first_action) AS median_days
+FROM tabla_tiempo
+WHERE days_to_first_action IS NOT NULL;
+
+
+
+-----Tasa de follow-up por cohorte
+
+WITH tabla_tiempo AS (
+  SELECT u.user_id, 
+         u.created,
+         f.first_action_date,
+         f.first_action_date - u.created AS days_to_first_action
+  FROM game_users u
+  LEFT JOIN (
+    SELECT user_id, MIN(action_date) AS first_action_date
+    FROM game_actions
+    GROUP BY user_id
+  ) f
+  ON u.user_id = f.user_id
+)
+
+SELECT
+  date_trunc('month', created)::date AS cohort_month,
+
+  COUNT(*) AS total_users,
+
+  COUNT(days_to_first_action) AS users_with_followup,
+
+  ROUND(
+    COUNT(days_to_first_action)::numeric / COUNT(*) * 100,
+    2
+  ) AS followup_rate_pct
+
+FROM tabla_tiempo
+GROUP BY 1
+ORDER BY 1;
