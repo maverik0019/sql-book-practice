@@ -230,3 +230,43 @@ SELECT
 FROM tabla_tiempo
 GROUP BY 1
 ORDER BY 1;
+
+--Análisis de outcome (métrica de negocio / clínica)
+
+WITH tabla_tiempo AS (
+  SELECT u.user_id, 
+         u.created,
+         f.first_action_date,
+         f.first_action_date - u.created AS days_to_first_action
+  FROM game_users u
+  LEFT JOIN (
+    SELECT user_id, MIN(action_date) AS first_action_date
+    FROM game_actions
+    GROUP BY user_id
+  ) f
+  ON u.user_id = f.user_id
+)
+
+SELECT
+  date_trunc('month', created)::date AS cohort_month,
+
+  COUNT(*) AS total_users,
+
+  COUNT(p.user_id) AS users_with_purchase,
+
+  ROUND(
+    COUNT(p.user_id)::numeric / COUNT(*) * 100,
+    2) AS conversion_rate_pct
+
+FROM tabla_tiempo t 
+LEFT JOIN
+(
+SELECT DISTINCT user_id
+FROM game_purchases
+) p
+  ON t.user_id = p.user_id
+
+GROUP BY 1
+ORDER BY 1;
+--~10% de los pacientes responde al tratamiento
+--
