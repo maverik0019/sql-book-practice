@@ -270,3 +270,39 @@ GROUP BY 1
 ORDER BY 1;
 --~10% de los pacientes responde al tratamiento
 --
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'game_users';
+
+
+WITH user_funnel AS (
+  SELECT
+        u.user_id, 
+        date_trunc('month', created)::date as cohort_month,
+        CASE WHEN a.user_id IS NOT NULL THEN 1 ELSE 0 END AS has_followup,
+        CASE WHEN p.user_id IS NOT NULL THEN 1 ELSE 0 END AS has_purchase
+FROM game_users u 
+LEFT JOIN
+(
+SELECT DISTINCT user_id
+FROM game_actions
+) a ON a.user_id = u.user_id
+LEFT JOIN(
+SELECT DISTINCT user_id
+FROM game_purchases
+) p  ON p.user_id = u.user_id)
+SELECT 
+    cohort_month, 
+    COUNT(*) AS enrolled,
+    SUM(has_followup) AS followup,
+    SUM(has_purchase) AS purchase, 
+
+
+    ROUND(SUM(has_followup)::numeric /COUNT(*) * 100, 2) AS followup_rate_pct,
+    ROUND(SUM(has_purchase)::numeric /COUNT(*) * 100, 2) AS convertion_rate_pct,
+
+    -- conversión condicionada: de los que hicieron follow-up, ¿cuántos compraron?
+  ROUND(SUM(has_purchase)::numeric / NULLIF(SUM(has_followup), 0) * 100, 2) AS purchase_given_followup_pct
+FROM user_funnel
+GROUP BY 1
+ORDER BY 1;
