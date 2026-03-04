@@ -306,3 +306,110 @@ SELECT
 FROM user_funnel
 GROUP BY 1
 ORDER BY 1;
+
+
+WITH cohort_stats AS (
+
+SELECT
+  DATE '2020-01-01' AS cohort,
+  62993 AS n,
+  55750 AS followup
+
+UNION ALL
+
+SELECT
+  DATE '2020-02-01',
+  37179,
+  31374
+
+)
+SELECT *
+FROM cohort_stats;
+
+
+----
+WITH cohort_stats AS (
+
+SELECT
+DATE '2020-01-01' AS cohort,
+62993 AS n,
+55750 AS x
+
+UNION ALL
+
+SELECT
+DATE '2020-02-01',
+37179,
+31374
+),
+
+rates AS (
+
+SELECT
+cohort,
+n,
+x,
+x::numeric/n AS p
+FROM cohort_stats
+
+),
+
+pooled AS (
+
+SELECT
+SUM(x)::numeric / SUM(n) AS p_pool
+FROM cohort_stats
+
+)
+
+SELECT
+r1.p AS jan_rate,
+r2.p AS feb_rate,
+
+(r1.p - r2.p) /
+SQRT(
+p_pool*(1-p_pool)*(1.0/r1.n + 1.0/r2.n)
+) AS z_score
+
+FROM rates r1
+JOIN rates r2
+ON r1.cohort < r2.cohort
+CROSS JOIN pooled;
+
+---Just a python code to do the same
+# Two-proportion z-test (follow-up rate): Jan vs Feb
+# Inputs from SQL funnel output:
+n1 = 62993   # enrolled (Jan)
+x1 = 55750   # follow-up (Jan)
+n2 = 37179   # enrolled (Feb)
+x2 = 31374   # follow-up (Feb)
+
+import math
+
+# Observed proportions
+p1 = x1 / n1
+p2 = x2 / n2
+
+# Pooled proportion under H0: p1 == p2
+p_pool = (x1 + x2) / (n1 + n2)
+
+# Standard error (pooled)
+se = math.sqrt(p_pool * (1 - p_pool) * (1/n1 + 1/n2))
+
+# z-score
+z = (p1 - p2) / se
+
+# Two-sided p-value (normal approx)
+# Using the error function to compute Phi(z) without extra libs
+def norm_cdf(z_val: float) -> float:
+    return 0.5 * (1.0 + math.erf(z_val / math.sqrt(2.0)))
+
+p_value_two_sided = 2 * (1 - norm_cdf(abs(z)))
+
+print(f"p1 (Jan) = {p1:.6f}")
+print(f"p2 (Feb) = {p2:.6f}")
+print(f"z        = {z:.6f}")
+print(f"p-value  = {p_value_two_sided:.6g}")
+
+# Rule of thumb at alpha=0.05:
+# if p_value_two_sided < 0.05 -> reject H0 (rates differ)
