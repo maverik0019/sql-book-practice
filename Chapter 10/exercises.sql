@@ -475,3 +475,66 @@ GROUP BY 1
 ORDER BY 1;
 
 --(80/20 revenue)
+
+WITH revenue_user AS(
+SELECT user_id,
+     SUM(amount) AS revenue
+FROM game_purchases
+GROUP by user_id),
+pareto AS(
+SELECT user_id,
+      revenue, 
+      ROW_NUMBER() OVER (ORDER BY revenue DESC) AS revenue_rank,
+      SUM(revenue) OVER (ORDER BY revenue DESC
+       ROWS BETWEEN UNBOUNDED PRECEDING
+      AND CURRENT ROW) AS cumulative_revenue,
+      SUM(revenue) OVER () AS total_revenue,
+      ROUND(
+          SUM(revenue) OVER(ORDER BY revenue DESC
+          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+          )::numeric
+          /SUM(revenue) OVER () * 100,
+          2
+          ) AS cumulative_revenue_pct
+FROM revenue_user)
+
+SELECT *
+FROM pareto
+WHERE cumulative_revenue_pct <= 80
+ORDER BY revenue_rank DESC;
+
+--PARETO 80/20 parte 2 
+WITH revenue_user AS (
+  SELECT
+    user_id,
+    SUM(amount) AS revenue
+  FROM game_purchases
+  GROUP BY user_id
+),
+pareto AS (
+  SELECT
+    user_id,
+    revenue,
+    ROW_NUMBER() OVER (ORDER BY revenue DESC) AS revenue_rank,
+    SUM(revenue) OVER (
+      ORDER BY revenue DESC
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS cumulative_revenue,
+    SUM(revenue) OVER () AS total_revenue,
+    ROUND(
+      SUM(revenue) OVER (
+        ORDER BY revenue DESC
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+      )::numeric
+      / SUM(revenue) OVER () * 100,
+      2
+    ) AS cumulative_revenue_pct,
+    COUNT(*) OVER () AS total_users
+  FROM revenue_user
+)
+SELECT
+      COUNT(*) AS user_in_top_80_pct_revenue,
+      MAX(total_users) AS total_users,
+      ROUND(COUNT(*)::numeric / MAX(total_users) *100, 2) AS pct_users_in_top_80pct_revenue
+FROM pareto
+WHERE cumulative_revenue_pct <= 80;
