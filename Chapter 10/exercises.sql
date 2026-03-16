@@ -538,3 +538,144 @@ SELECT
       ROUND(COUNT(*)::numeric / MAX(total_users) *100, 2) AS pct_users_in_top_80pct_revenue
 FROM pareto
 WHERE cumulative_revenue_pct <= 80;
+
+
+--curva completa de Pareto
+WITH revenue_user AS (
+  SELECT
+    user_id,
+    SUM(amount) AS revenue
+  FROM game_purchases
+  GROUP BY user_id
+),
+pareto_base AS (
+  SELECT
+    user_id,
+    revenue,
+    ROW_NUMBER() OVER (ORDER BY revenue DESC) AS user_rank,
+    COUNT(*) OVER () AS total_users,
+    SUM(revenue) OVER (
+      ORDER BY revenue DESC
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS cumulative_revenue,
+    SUM(revenue) OVER () AS total_revenue
+  FROM revenue_user
+)
+SELECT
+  user_id,
+  revenue,
+  user_rank,
+  ROUND(user_rank::numeric / total_users * 100, 2) AS pct_users,
+  ROUND(cumulative_revenue::numeric / total_revenue * 100, 2) AS pct_revenue
+FROM pareto_base
+ORDER BY user_rank;
+
+--
+WITH revenue_user AS (
+  SELECT
+    user_id,
+    SUM(amount) AS revenue
+  FROM game_purchases
+  GROUP BY user_id
+),
+pareto_base AS (
+  SELECT
+    user_id,
+    revenue,
+    ROW_NUMBER() OVER (ORDER BY revenue DESC) AS user_rank,
+    COUNT(*) OVER () AS total_users,
+    SUM(revenue) OVER (
+      ORDER BY revenue DESC
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS cumulative_revenue,
+    SUM(revenue) OVER () AS total_revenue
+  FROM revenue_user
+),
+pareto_curve AS (
+  SELECT
+    CEIL(user_rank::numeric / total_users * 100) AS pct_users_bucket,
+    cumulative_revenue::numeric / total_revenue * 100 AS pct_revenue
+  FROM pareto_base
+)
+SELECT
+  pct_users_bucket,
+  ROUND(MAX(pct_revenue), 2) AS pct_revenue
+FROM pareto_curve
+GROUP BY 1
+ORDER BY 1;
+
+--3th
+WITH revenue_user AS (
+  SELECT
+    user_id,
+    SUM(amount) AS revenue
+  FROM game_purchases
+  GROUP BY user_id
+),
+pareto_base AS (
+  SELECT
+    user_id,
+    revenue,
+    ROW_NUMBER() OVER (ORDER BY revenue DESC) AS user_rank,
+    COUNT(*) OVER () AS total_users,
+    SUM(revenue) OVER (
+      ORDER BY revenue DESC
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS cumulative_revenue,
+    SUM(revenue) OVER () AS total_revenue
+  FROM revenue_user
+)
+SELECT
+  user_id,
+  revenue,
+  user_rank,
+  ROUND(user_rank::numeric / total_users * 100, 2) AS pct_users,
+  ROUND(cumulative_revenue::numeric / total_revenue * 100, 2) AS pct_revenue
+FROM pareto_base
+ORDER BY user_rank;
+
+--buckets de usuarios--CEIL
+WITH revenue_user AS (
+  SELECT
+    user_id,
+    SUM(amount) AS revenue
+  FROM game_purchases
+  GROUP BY user_id
+),
+pareto_base AS (
+  SELECT
+    user_id,
+    revenue,
+    ROW_NUMBER() OVER (ORDER BY revenue DESC) AS user_rank,
+    COUNT(*) OVER () AS total_users,
+    SUM(revenue) OVER (
+      ORDER BY revenue DESC
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS cumulative_revenue,
+    SUM(revenue) OVER () AS total_revenue
+  FROM revenue_user
+),
+pareto_curve AS (
+  SELECT
+    CEIL(user_rank::numeric / total_users * 100) AS pct_users,
+    cumulative_revenue::numeric / total_revenue * 100 AS pct_revenue
+  FROM pareto_base
+)
+
+SELECT
+  pct_users,
+  ROUND(MAX(pct_revenue),2) AS pct_revenue
+FROM pareto_curve
+GROUP BY pct_users
+ORDER BY pct_users;
+
+
+Revenue
+100 |                          *
+ 80 |                     *
+ 60 |                *
+ 40 |          *
+ 20 |     *
+  0 |__*________________________
+     0   20   40   60   80   100
+           % usuarios
